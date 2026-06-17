@@ -4,6 +4,7 @@ import javax.validation.Valid;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.propertyeditors.StringTrimmerEditor;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.validation.BindingResult;
@@ -34,15 +35,14 @@ public class RegistrationController {
 	@Autowired
 	private RoleDao roleDao;
 	
+	@Autowired
+	private BCryptPasswordEncoder passwordEncoder;
+	
 	@InitBinder
 	public void initBinder(WebDataBinder dataBinder) {
-		
 		StringTrimmerEditor stringTrimmerEditor = new StringTrimmerEditor(true);
-		
 		dataBinder.registerCustomEditor(String.class, stringTrimmerEditor);
 	}	
-	
-	
 	
 	@GetMapping("/showRegistrationForm")
 	public String showRegistrationForm(Model theModel) {
@@ -50,18 +50,20 @@ public class RegistrationController {
 		return "registration/registration-form";
 	}
 	
-	
 	@PostMapping("/processRegistrationForm")
-	public String processRegistrationForm(@Valid @ModelAttribute("userDto") UserDto user, 
-										  BindingResult theBindingResult, @RequestParam(value="role") String roleName, Model theModel) {
+	public String processRegistrationForm(@Valid @ModelAttribute("userDto") UserDto user, BindingResult theBindingResult, @RequestParam(value="role") String roleName, Model theModel) {
 		if (theBindingResult.hasErrors()) {
 			return "registration/registration-form";
 		}
 		
+		// Password hashing logic is solid
+		String plainPassword = user.getPassword();
+		String encryptedPassword = passwordEncoder.encode(plainPassword);
+		user.setPassword(encryptedPassword);
+		
 		if(roleName.equals("ROLE_STUDENT")) {
 			String userName = user.getUserName();
 			
-			//if username already exists in db
 			if(studentService.findByStudentName(userName) != null) {
 				theModel.addAttribute("userDto", new UserDto());
 				theModel.addAttribute("registrationError", "User name already exists!");
@@ -70,12 +72,10 @@ public class RegistrationController {
 					
 			Role role = roleDao.findRoleByName(roleName);
 			user.setRole(role);
-			studentService.save(user); //save() method converts UserDto to Student and saves it in db
-		} else { //teacher role
-			
+			studentService.save(user);
+		} else { // teacher role
 			String userName = user.getUserName();
 			
-			//if username already exists in db
 			if(teacherService.findByTeacherName(userName) != null) {
 				theModel.addAttribute("userDto", new UserDto());
 				theModel.addAttribute("registrationError", "User name already exists!");
@@ -86,7 +86,6 @@ public class RegistrationController {
 			user.setRole(role);
 			teacherService.save(user);
 		}
-		
 		
 		return "registration/registration-confirmation";
 	}
