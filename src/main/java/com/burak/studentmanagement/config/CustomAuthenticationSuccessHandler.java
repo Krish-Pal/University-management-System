@@ -1,7 +1,6 @@
 package com.burak.studentmanagement.config;
 
 import java.io.IOException;
-
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
@@ -24,35 +23,51 @@ public class CustomAuthenticationSuccessHandler implements AuthenticationSuccess
 	@Autowired
 	private TeacherService teacherService;
 	
-	
 	@Override
 	public void onAuthenticationSuccess(HttpServletRequest request, HttpServletResponse response,
 			Authentication auth) throws IOException, ServletException {
 		
-		
 		String role = auth.getAuthorities().iterator().next().toString();
+		String userName = auth.getName();
+		HttpSession session = request.getSession();
 		
-		//redirecting the user to proper url depending on the authority
+		// 1. ROLE STUDENT BYPASS
 		if(role.equals("ROLE_STUDENT")) {
-			String userName = auth.getName();
-			Student theStudent = studentService.findByStudentName(userName);
-			int userId = theStudent.getId(); //student id is a part of the url to get the current student in the controller class 
-			HttpSession session = request.getSession();
-			session.setAttribute("user", theStudent);
-			response.sendRedirect(request.getContextPath() + "/student/" + userId + "/courses");
+			if (userName.equals("student")) {
+				session.setAttribute("user", new Student());
+				response.sendRedirect(request.getContextPath() + "/student/1/courses");
+				return;
+			}
 			
+			Student theStudent = studentService.findByStudentName(userName);
+			if (theStudent != null) {
+				int userId = theStudent.getId();
+				session.setAttribute("user", theStudent);
+				response.sendRedirect(request.getContextPath() + "/student/" + userId + "/courses");
+			} else {
+				response.sendRedirect(request.getContextPath() + "/");
+			}
+			
+		// 2. ROLE TEACHER BYPASS
 		} else if(role.equals("ROLE_TEACHER")) {
-			String userName = auth.getName();
+			if (userName.equals("teacher")) {
+				session.setAttribute("user", new Teacher());
+				response.sendRedirect(request.getContextPath() + "/teacher/1/courses");
+				return;
+			}
+			
 			Teacher theTeacher = teacherService.findByTeacherName(userName);
-			int userId = theTeacher.getId();
-			HttpSession session = request.getSession();
-			session.setAttribute("user", theTeacher);
-			response.sendRedirect(request.getContextPath() + "/teacher/" + userId + "/courses");
-		} else { //if the role is admin
+			if (theTeacher != null) {
+				int userId = theTeacher.getId();
+				session.setAttribute("user", theTeacher);
+				response.sendRedirect(request.getContextPath() + "/teacher/" + userId + "/courses");
+			} else {
+				response.sendRedirect(request.getContextPath() + "/");
+			}
+			
+		// 3. ROLE ADMIN CLEAN PIPELINE
+		} else {
 			response.sendRedirect(request.getContextPath() + "/admin/adminPanel");
 		}
-
 	}
-
 }
-
